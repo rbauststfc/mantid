@@ -172,5 +172,44 @@ std::map<std::string, std::string> PolarizationEfficienciesWildes::validateInput
   return problems;
 }
 
-void PolarizationEfficienciesWildes::exec() {}
+void PolarizationEfficienciesWildes::exec() {
+
+  // Calculate fa, fp and phi
+  // Set fa and fp as outputs
+  // If want phi then set as output
+  // If want rho and/or alpha then calculate them and set as outputs
+
+  // If magnetic input, calculate (2p-1) and then p and then a and set both as outputs
+  // If want (2p-1) and (2a-1) then calculate the missing (2a-1) and set both as outputs
+
+  // If not magnetic input but have either a and/or p as input then calculate the missing one (if relevant) and set both
+  // as outputs If want (2p-1) and (2a-1) then calculate both and set as outputs
+}
+
+MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculatePhi(const MatrixWorkspace_sptr &ws00,
+                                                                  const MatrixWorkspace_sptr &ws01,
+                                                                  const MatrixWorkspace_sptr &ws10,
+                                                                  const MatrixWorkspace_sptr &ws11) {
+  return nullptr;
+}
+
+MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateRho(const MatrixWorkspace_sptr &wsFp) { return nullptr; }
+
+MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateAlpha(const MatrixWorkspace_sptr &wsFa) {
+  return nullptr;
+}
+
+MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateTPMOFromPhi(const WorkspaceGroup_sptr &magWsGrp,
+                                                                          const MatrixWorkspace_sptr &wsFp,
+                                                                          const MatrixWorkspace_sptr &wsFa,
+                                                                          const MatrixWorkspace_sptr &wsPhi) {
+  return nullptr;
+}
+
+MatrixWorkspace_sptr
+PolarizationEfficienciesWildes::solveForUnknownEfficiency(const MatrixWorkspace_sptr &wsPhi,
+                                                          const MatrixWorkspace_sptr &knownEfficiency) {
+  return nullptr;
+}
+
 } // namespace Mantid::Algorithms
