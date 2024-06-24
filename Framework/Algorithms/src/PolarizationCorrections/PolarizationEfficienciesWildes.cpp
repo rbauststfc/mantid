@@ -11,6 +11,7 @@
 #include "MantidAlgorithms/PolarizationCorrections/PolarizationCorrectionsHelpers.h"
 #include "MantidAlgorithms/PolarizationCorrections/SpinStateValidator.h"
 #include "MantidKernel/CompositeValidator.h"
+#include "MantidKernel/EnabledWhenProperty.h"
 #include "MantidKernel/Unit.h"
 
 namespace {
@@ -30,6 +31,7 @@ auto constexpr OUTPUT_RHO_WS{"OutputRho"};
 auto constexpr OUTPUT_ALPHA_WS{"OutputAlpha"};
 auto constexpr OUTPUT_TPMO_WS{"OutputTwoPMinusOne"};
 auto constexpr OUTPUT_TAMO_WS{"OutputTwoAMinusOne"};
+auto constexpr INCLUDE_DIAGNOSTICS{"IncludeDiagnosticOutputs"};
 
 auto constexpr OUTPUT_EFF_GROUP{"Efficiency Outputs"};
 auto constexpr OUTPUT_DIAGNOSTIC_GROUP{"Diagnostic Outputs"};
@@ -63,37 +65,49 @@ void PolarizationEfficienciesWildes::init() {
                   "Flipper configurations of the input group workspace(s)");
   declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::INPUT_P_EFF_WS, "", Direction::Input,
                                                                        PropertyMode::Optional),
-                  "Workspace containing the wavelength-dependent efficiency for the polarizer.");
+                  "Workspace containing the known wavelength-dependent efficiency for the polarizer.");
   declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::INPUT_A_EFF_WS, "", Direction::Input,
                                                                        PropertyMode::Optional),
-                  "Workspace containing the wavelength-dependent efficiency for the analyser.");
-  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_P_EFF_WS, "",
-                                                                       Direction::Output, PropertyMode::Optional),
-                  "Workspace containing the wavelength-dependent efficiency for the polarizer.");
+                  "Workspace containing the known wavelength-dependent efficiency for the analyser.");
   declareProperty(
       std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_F_P_EFF_WS, "", Direction::Output),
       "Workspace containing the wavelength-dependent efficiency for the polarizing flipper.");
   declareProperty(
       std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_F_A_EFF_WS, "", Direction::Output),
       "Workspace containing the wavelength-dependent efficiency for the analysing flipper.");
+  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_P_EFF_WS, "",
+                                                                       Direction::Output, PropertyMode::Optional),
+                  "Workspace containing the wavelength-dependent efficiency for the polarizer.");
   declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_A_EFF_WS, "",
                                                                        Direction::Output, PropertyMode::Optional),
                   "Workspace containing the wavelength-dependent efficiency for the analyser.");
-  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_PHI_WS, "", Direction::Output,
-                                                                       PropertyMode::Optional),
+  declareProperty(PropNames::INCLUDE_DIAGNOSTICS, false, "Whether to include additional diagnostic outputs.");
+  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_PHI_WS, "phi",
+                                                                       Direction::Output, PropertyMode::Optional),
                   "Workspace containing the wavelength-dependent value for the Phi.");
-  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_RHO_WS, "", Direction::Output,
-                                                                       PropertyMode::Optional),
+  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_RHO_WS, "rho",
+                                                                       Direction::Output, PropertyMode::Optional),
                   "Workspace containing the wavelength-dependent value for Rho.");
-  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_ALPHA_WS, "",
+  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_ALPHA_WS, "alpha",
                                                                        Direction::Output, PropertyMode::Optional),
                   "Workspace containing the wavelength-dependent value for Alpha.");
-  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_TPMO_WS, "", Direction::Output,
-                                                                       PropertyMode::Optional),
+  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_TPMO_WS, "tpmo",
+                                                                       Direction::Output, PropertyMode::Optional),
                   "Workspace containing the wavelength-dependent value for the term (2p-1).");
-  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_TAMO_WS, "", Direction::Output,
-                                                                       PropertyMode::Optional),
+  declareProperty(std::make_unique<WorkspaceProperty<MatrixWorkspace>>(PropNames::OUTPUT_TAMO_WS, "tamo",
+                                                                       Direction::Output, PropertyMode::Optional),
                   "Workspace containing the wavelength-dependent value for the term (2a-1).");
+
+  setPropertySettings(PropNames::OUTPUT_PHI_WS,
+                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
+  setPropertySettings(PropNames::OUTPUT_RHO_WS,
+                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
+  setPropertySettings(PropNames::OUTPUT_ALPHA_WS,
+                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
+  setPropertySettings(PropNames::OUTPUT_TPMO_WS,
+                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
+  setPropertySettings(PropNames::OUTPUT_TAMO_WS,
+                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
 
   const auto &effOutputGroup = PropNames::OUTPUT_EFF_GROUP;
   setPropertyGroup(PropNames::OUTPUT_P_EFF_WS, effOutputGroup);
@@ -151,12 +165,12 @@ void validateInputWSGroup(const Mantid::API::WorkspaceGroup_sptr &groupWs, const
 std::map<std::string, std::string> PolarizationEfficienciesWildes::validateInputs() {
   std::map<std::string, std::string> problems;
 
-  const WorkspaceGroup_sptr groupNonMagWs = getProperty(PropNames::INPUT_NON_MAG_WS);
-  validateInputWSGroup(groupNonMagWs, PropNames::INPUT_NON_MAG_WS, problems);
+  const WorkspaceGroup_sptr nonMagWsGrp = getProperty(PropNames::INPUT_NON_MAG_WS);
+  validateInputWSGroup(nonMagWsGrp, PropNames::INPUT_NON_MAG_WS, problems);
 
   if (!isDefault(PropNames::INPUT_MAG_WS)) {
-    const WorkspaceGroup_sptr groupMagWs = getProperty(PropNames::INPUT_MAG_WS);
-    validateInputWSGroup(groupMagWs, PropNames::INPUT_MAG_WS, problems);
+    const WorkspaceGroup_sptr magWsGrp = getProperty(PropNames::INPUT_MAG_WS);
+    validateInputWSGroup(magWsGrp, PropNames::INPUT_MAG_WS, problems);
   }
 
   if (!isDefault(PropNames::INPUT_P_EFF_WS)) {
@@ -173,43 +187,163 @@ std::map<std::string, std::string> PolarizationEfficienciesWildes::validateInput
 }
 
 void PolarizationEfficienciesWildes::exec() {
+  // Calculate the polarizing and analysing flipper efficiencies
+  const WorkspaceGroup_sptr &nonMagWsGrp = getProperty(PropNames::INPUT_NON_MAG_WS);
+  const auto &flipperConfig = getPropertyValue(PropNames::FLIPPERS);
+  const auto &ws00 = workspaceForSpinState(nonMagWsGrp, flipperConfig, SpinStateValidator::ZERO_ZERO);
+  const auto &ws01 = workspaceForSpinState(nonMagWsGrp, flipperConfig, SpinStateValidator::ZERO_ONE);
+  const auto &ws10 = workspaceForSpinState(nonMagWsGrp, flipperConfig, SpinStateValidator::ONE_ZERO);
+  const auto &ws11 = workspaceForSpinState(nonMagWsGrp, flipperConfig, SpinStateValidator::ONE_ONE);
 
-  // Calculate fa, fp and phi
-  // Set fa and fp as outputs
-  // If want phi then set as output
-  // If want rho and/or alpha then calculate them and set as outputs
+  const auto numerator = ws00 - ws01 - ws10 + ws11;
 
-  // If magnetic input, calculate (2p-1) and then p and then a and set both as outputs
-  // If want (2p-1) and (2a-1) then calculate the missing (2a-1) and set both as outputs
+  const auto wsFp = numerator / (2 * (ws00 - ws01));
+  const auto wsFa = numerator / (2 * (ws00 - ws10));
 
-  // If not magnetic input but have either a and/or p as input then calculate the missing one (if relevant) and set both
-  // as outputs If want (2p-1) and (2a-1) then calculate both and set as outputs
+  // Calculate phi
+  const auto wsPhi = calculatePhi(ws00, ws01, ws10, ws11);
+
+  // Stop here if neither of the polarizer and analyser efficiencies have been requested
+  const bool solveForP = !isDefault(PropNames::OUTPUT_P_EFF_WS);
+  const bool solveForA = !isDefault(PropNames::OUTPUT_A_EFF_WS);
+
+  if (!solveForP && !solveForA) {
+    setOutputs(wsPhi, wsFp, wsFa);
+    return;
+  }
+
+  MatrixWorkspace_sptr wsP = nullptr;
+  MatrixWorkspace_sptr wsA = nullptr;
+
+  calculatePolarizerAndAnalyserEfficiencies(wsFp, wsFa, wsPhi, solveForP, wsP, solveForA, wsA);
+
+  setOutputs(wsPhi, wsFp, wsFa, wsP, wsA);
 }
 
 MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculatePhi(const MatrixWorkspace_sptr &ws00,
                                                                   const MatrixWorkspace_sptr &ws01,
                                                                   const MatrixWorkspace_sptr &ws10,
                                                                   const MatrixWorkspace_sptr &ws11) {
-  return nullptr;
+  return ((ws00 - ws01) * (ws00 - ws10)) / ((ws00 * ws11) - (ws01 * ws10));
 }
 
-MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateRho(const MatrixWorkspace_sptr &wsFp) { return nullptr; }
+MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateRho(const MatrixWorkspace_sptr &wsFp) {
+  return (2 * wsFp) - 1;
+}
 
 MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateAlpha(const MatrixWorkspace_sptr &wsFa) {
-  return nullptr;
+  return (2 * wsFa) - 1;
 }
 
 MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateTPMOFromPhi(const WorkspaceGroup_sptr &magWsGrp,
                                                                           const MatrixWorkspace_sptr &wsFp,
                                                                           const MatrixWorkspace_sptr &wsFa,
                                                                           const MatrixWorkspace_sptr &wsPhi) {
-  return nullptr;
+  const auto &flipperConfig = getPropertyValue(PropNames::FLIPPERS);
+  const auto &ws00 = workspaceForSpinState(magWsGrp, flipperConfig, SpinStateValidator::ZERO_ZERO);
+  const auto &ws01 = workspaceForSpinState(magWsGrp, flipperConfig, SpinStateValidator::ZERO_ONE);
+  const auto &ws10 = workspaceForSpinState(magWsGrp, flipperConfig, SpinStateValidator::ONE_ZERO);
+  const auto &ws11 = workspaceForSpinState(magWsGrp, flipperConfig, SpinStateValidator::ONE_ONE);
+
+  const auto twoFp = 2 * wsFp;
+  const auto twoFa = 2 * wsFa;
+
+  const auto numerator = ((1 - twoFa) * ws00) + ((twoFa - 1) * ws10) - ws01 + ws11;
+  const auto denominator = ((1 - twoFp) * ws00) + ((twoFp - 1) * ws01) - ws10 + ws11;
+  const auto tPMOSquared = wsPhi * (numerator / denominator);
+
+  auto alg = createChildAlgorithm("Power");
+  alg->initialize();
+  alg->setProperty("InputWorkspace", tPMOSquared);
+  alg->setProperty("Exponent", 0.5);
+  alg->execute();
+
+  return alg->getProperty("OutputWorkspace");
+}
+
+namespace {
+MatrixWorkspace_sptr solveUnknownEfficiencyFromTXMO(const MatrixWorkspace_sptr &wsPhi,
+                                                    const MatrixWorkspace_sptr &wsTXMO) {
+  return (wsPhi / (2 * wsTXMO)) + 0.5;
+}
+} // unnamed namespace
+
+void PolarizationEfficienciesWildes::calculatePolarizerAndAnalyserEfficiencies(
+    const MatrixWorkspace_sptr &wsFp, const MatrixWorkspace_sptr &wsFa, const MatrixWorkspace_sptr &wsPhi,
+    const bool solveForP, MatrixWorkspace_sptr &wsP, const bool solveForA, MatrixWorkspace_sptr &wsA) {
+  const WorkspaceGroup_sptr &magWsGrp = getProperty(PropNames::INPUT_MAG_WS);
+
+  if (magWsGrp != nullptr) {
+    const MatrixWorkspace_sptr wsTPMO = calculateTPMOFromPhi(magWsGrp, wsFp, wsFa, wsPhi);
+
+    if (solveForP) {
+      wsP = (wsTPMO + 1) / 2;
+    }
+
+    if (solveForA) {
+      wsA = solveUnknownEfficiencyFromTXMO(wsPhi, wsTPMO);
+    }
+
+    return;
+  }
+
+  if (solveForP) {
+    if (const MatrixWorkspace_sptr &inWsP = getProperty(PropNames::INPUT_P_EFF_WS)) {
+      wsP = inWsP;
+    } else {
+      wsA = getProperty(PropNames::INPUT_A_EFF_WS);
+      wsP = solveForUnknownEfficiency(wsPhi, wsA);
+    }
+  }
+
+  if (solveForA && wsA == nullptr) {
+    if (const MatrixWorkspace_sptr &inWsA = getProperty(PropNames::INPUT_A_EFF_WS)) {
+      wsA = inWsA;
+    } else if (wsP != nullptr) {
+      wsA = solveForUnknownEfficiency(wsPhi, wsP);
+    }
+  }
 }
 
 MatrixWorkspace_sptr
 PolarizationEfficienciesWildes::solveForUnknownEfficiency(const MatrixWorkspace_sptr &wsPhi,
                                                           const MatrixWorkspace_sptr &knownEfficiency) {
-  return nullptr;
+  const auto wsTXMO = (2 * knownEfficiency) - 1;
+  return solveUnknownEfficiencyFromTXMO(wsPhi, wsTXMO);
 }
 
+void PolarizationEfficienciesWildes::setOutputs(const MatrixWorkspace_sptr &wsPhi, const MatrixWorkspace_sptr &wsFp,
+                                                const MatrixWorkspace_sptr &wsFa, const MatrixWorkspace_sptr &wsP,
+                                                const MatrixWorkspace_sptr &wsA) {
+  setProperty(PropNames::OUTPUT_F_P_EFF_WS, wsFp);
+  setProperty(PropNames::OUTPUT_F_A_EFF_WS, wsFa);
+
+  if (wsP != nullptr) {
+    setProperty(PropNames::OUTPUT_P_EFF_WS, wsP);
+  }
+
+  if (wsA != nullptr) {
+    setProperty(PropNames::OUTPUT_A_EFF_WS, wsA);
+  }
+
+  if (getProperty(PropNames::INCLUDE_DIAGNOSTICS)) {
+    setProperty(PropNames::OUTPUT_PHI_WS, wsPhi);
+
+    const auto wsRho = calculateRho(wsFp);
+    setProperty(PropNames::OUTPUT_RHO_WS, wsRho);
+
+    const auto wsAlpha = calculateAlpha(wsFa);
+    setProperty(PropNames::OUTPUT_ALPHA_WS, wsAlpha);
+
+    if (wsP != nullptr) {
+      const auto wsTPMO = (2 * wsP) - 1;
+      setProperty(PropNames::OUTPUT_TPMO_WS, wsTPMO);
+    }
+
+    if (wsA != nullptr) {
+      const auto wsTAMO = (2 * wsA) - 1;
+      setProperty(PropNames::OUTPUT_TAMO_WS, wsTAMO);
+    }
+  }
+}
 } // namespace Mantid::Algorithms

@@ -53,9 +53,19 @@ private:
   MatrixWorkspace_sptr calculateTPMOFromPhi(const WorkspaceGroup_sptr &magWsGrp, const MatrixWorkspace_sptr &wsFp,
                                             const MatrixWorkspace_sptr &wsFa, const MatrixWorkspace_sptr &wsPhi);
 
-  /// If either the polarizer or the analyser efficiency is known, use this value along with Phi to solve for the other
-  /// efficiency
+  /// Calculate the polarizer and/or analyser efficiencies, as requested
+  void calculatePolarizerAndAnalyserEfficiencies(const MatrixWorkspace_sptr &wsFp, const MatrixWorkspace_sptr &wsFa,
+                                                 const MatrixWorkspace_sptr &wsPhi, const bool solveForP,
+                                                 MatrixWorkspace_sptr &wsP, const bool solveForA,
+                                                 MatrixWorkspace_sptr &wsA);
+
+  /// If either the polarizer or the analyser efficiency is known, use the relationship Phi = (2p-1)(2a-1) to solve for
+  /// the other efficiency
   MatrixWorkspace_sptr solveForUnknownEfficiency(const MatrixWorkspace_sptr &wsPhi,
                                                  const MatrixWorkspace_sptr &knownEfficiency);
+
+  ///  Set the algorithm outputs
+  void setOutputs(const MatrixWorkspace_sptr &wsPhi, const MatrixWorkspace_sptr &wsFp, const MatrixWorkspace_sptr &wsFa,
+                  const MatrixWorkspace_sptr &wsP = nullptr, const MatrixWorkspace_sptr &wsA = nullptr);
 };
 } // namespace Mantid::Algorithms
