@@ -37,6 +37,9 @@ auto constexpr OUTPUT_EFF_GROUP{"Efficiency Outputs"};
 auto constexpr OUTPUT_DIAGNOSTIC_GROUP{"Diagnostic Outputs"};
 } // namespace PropNames
 
+auto constexpr INPUT_EFF_WS_ERROR{
+    "If a magnetic workspace group has been provided then input efficiency workspaces should not be provided."};
+
 auto constexpr INITIAL_CONFIG{"00,01,10,11"};
 } // namespace
 
@@ -168,19 +171,43 @@ std::map<std::string, std::string> PolarizationEfficienciesWildes::validateInput
   const WorkspaceGroup_sptr nonMagWsGrp = getProperty(PropNames::INPUT_NON_MAG_WS);
   validateInputWSGroup(nonMagWsGrp, PropNames::INPUT_NON_MAG_WS, problems);
 
-  if (!isDefault(PropNames::INPUT_MAG_WS)) {
+  const bool hasMagWsGrp = !isDefault(PropNames::INPUT_MAG_WS);
+  const bool hasInputPWs = !isDefault(PropNames::INPUT_P_EFF_WS);
+  const bool hasInputAWs = !isDefault(PropNames::INPUT_A_EFF_WS);
+
+  // If a magnetic workspace has been provided then we will use that to calculate the polarizer and analyser
+  // efficiencies, so individual efficiency workspaces should not be provided as well
+  if (hasMagWsGrp) {
+    if (hasInputPWs) {
+      problems[PropNames::INPUT_P_EFF_WS] = INPUT_EFF_WS_ERROR;
+    }
+
+    if (hasInputAWs) {
+      problems[PropNames::INPUT_A_EFF_WS] = INPUT_EFF_WS_ERROR;
+    }
+
     const WorkspaceGroup_sptr magWsGrp = getProperty(PropNames::INPUT_MAG_WS);
     validateInputWSGroup(magWsGrp, PropNames::INPUT_MAG_WS, problems);
+  } else {
+    if (hasInputPWs) {
+      const MatrixWorkspace_sptr inputPolEffWs = getProperty(PropNames::INPUT_P_EFF_WS);
+      validateInputWorkspace(inputPolEffWs, PropNames::INPUT_P_EFF_WS, problems);
+    }
+
+    if (hasInputAWs) {
+      const MatrixWorkspace_sptr inputAnaEffWs = getProperty(PropNames::INPUT_A_EFF_WS);
+      validateInputWorkspace(inputAnaEffWs, PropNames::INPUT_A_EFF_WS, problems);
+    }
   }
 
-  if (!isDefault(PropNames::INPUT_P_EFF_WS)) {
-    const MatrixWorkspace_sptr inputPolEffWs = getProperty(PropNames::INPUT_P_EFF_WS);
-    validateInputWorkspace(inputPolEffWs, PropNames::INPUT_P_EFF_WS, problems);
+  if (!isDefault(PropNames::OUTPUT_P_EFF_WS) && !hasMagWsGrp && !hasInputPWs && !hasInputAWs) {
+    problems[PropNames::OUTPUT_P_EFF_WS] = "If output polarizer efficiency is requested then either the magnetic "
+                                           "workspace or the known analyser efficiency should be provided.";
   }
 
-  if (!isDefault(PropNames::INPUT_A_EFF_WS)) {
-    const MatrixWorkspace_sptr inputAnaEffWs = getProperty(PropNames::INPUT_A_EFF_WS);
-    validateInputWorkspace(inputAnaEffWs, PropNames::INPUT_A_EFF_WS, problems);
+  if (!isDefault(PropNames::OUTPUT_A_EFF_WS) && !hasMagWsGrp && !hasInputPWs && !hasInputAWs) {
+    problems[PropNames::OUTPUT_A_EFF_WS] = "If output analyser efficiency is requested then either the magnetic "
+                                           "workspace or the known polarizer efficiency should be provided.";
   }
 
   return problems;
@@ -203,21 +230,19 @@ void PolarizationEfficienciesWildes::exec() {
   // Calculate phi
   const auto wsPhi = calculatePhi(ws00, ws01, ws10, ws11);
 
-  // Stop here if neither of the polarizer and analyser efficiencies have been requested
   const bool solveForP = !isDefault(PropNames::OUTPUT_P_EFF_WS);
   const bool solveForA = !isDefault(PropNames::OUTPUT_A_EFF_WS);
-
   if (!solveForP && !solveForA) {
+    // Stop here if neither of the polarizer and analyser efficiencies have been requested
     setOutputs(wsPhi, wsFp, wsFa);
-    return;
+  } else {
+    MatrixWorkspace_sptr wsP = nullptr;
+    MatrixWorkspace_sptr wsA = nullptr;
+
+    calculatePolarizerAndAnalyserEfficiencies(wsFp, wsFa, wsPhi, solveForP, wsP, solveForA, wsA);
+
+    setOutputs(wsPhi, wsFp, wsFa, wsP, wsA);
   }
-
-  MatrixWorkspace_sptr wsP = nullptr;
-  MatrixWorkspace_sptr wsA = nullptr;
-
-  calculatePolarizerAndAnalyserEfficiencies(wsFp, wsFa, wsPhi, solveForP, wsP, solveForA, wsA);
-
-  setOutputs(wsPhi, wsFp, wsFa, wsP, wsA);
 }
 
 MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculatePhi(const MatrixWorkspace_sptr &ws00,
@@ -262,6 +287,7 @@ MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateTPMOFromPhi(const 
 }
 
 namespace {
+/// Solve for the unknown efficiency from either (2p-1) or (2a-1)
 MatrixWorkspace_sptr solveUnknownEfficiencyFromTXMO(const MatrixWorkspace_sptr &wsPhi,
                                                     const MatrixWorkspace_sptr &wsTXMO) {
   return (wsPhi / (2 * wsTXMO)) + 0.5;

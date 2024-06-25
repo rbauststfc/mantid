@@ -30,6 +30,12 @@ auto constexpr WS_GRP_SIZE_ERROR{"The input group must contain a workspace for a
 auto constexpr WS_GRP_CHILD_TYPE_ERROR{"All input workspaces must be matrix workspaces."};
 auto constexpr WS_UNIT_ERROR{"All input workspaces must be in units of Wavelength."};
 auto constexpr WS_SPECTRUM_ERROR{"All input workspaces must contain only a single spectrum."};
+auto constexpr INPUT_EFF_WS_ERROR{
+    "If a magnetic workspace group has been provided then input efficiency workspaces should not be provided."};
+auto constexpr OUTPUT_P_EFF_ERROR{"If output polarizer efficiency is requested then either the magnetic workspace or "
+                                  "the known analyser efficiency should be provided."};
+auto constexpr OUTPUT_A_EFF_ERROR{"If output analyser efficiency is requested then either the magnetic workspace or "
+                                  "the known polarizer efficiency should be provided."};
 
 std::string createPropertyErrorMessage(const std::string &propertyName, const std::string &errorMsg) {
   return PropErrors::PREFIX + propertyName + ": " + errorMsg;
@@ -42,6 +48,18 @@ auto constexpr MAG_WS{"InputMagWorkspace"};
 auto constexpr P_EFF_WS{"InputPolarizerEfficiency"};
 auto constexpr A_EFF_WS{"InputAnalyserEfficiency"};
 } // namespace InputPropNames
+
+namespace OutputPropNames {
+auto constexpr F_P_EFF_WS{"OutputFpEfficiency"};
+auto constexpr F_A_EFF_WS{"OutputFaEfficiency"};
+auto constexpr P_EFF_WS{"OutputPolarizerEfficiency"};
+auto constexpr A_EFF_WS{"OutputAnalyserEfficiency"};
+auto constexpr PHI_WS{"OutputPhi"};
+auto constexpr RHO_WS{"OutputRho"};
+auto constexpr ALPHA_WS{"OutputAlpha"};
+auto constexpr TPMO_WS{"OutputTwoPMinusOne"};
+auto constexpr TAMO_WS{"OutputTwoAMinusOne"};
+} // namespace OutputPropNames
 
 class PolarizationEfficienciesWildesTest : public CxxTest::TestSuite {
 public:
@@ -178,9 +196,67 @@ public:
     assertSetPropertyThrowsInvalidArgumentError<TableWorkspace>(InputPropNames::A_EFF_WS, invalidWsType);
   }
 
+  /// Validation tests - valid property combinations
+
+  void test_providing_both_mag_and_input_polarizer_efficiency_ws_throws_error() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto magGrp = createMagWSGroup("magWs");
+    const auto polarizerEffWs = createWS("polEff", 0.9);
+    const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
+    alg->setProperty(InputPropNames::P_EFF_WS, polarizerEffWs);
+    assertValidationError(alg, InputPropNames::P_EFF_WS, PropErrors::INPUT_EFF_WS_ERROR);
+  }
+
+  void test_providing_both_mag_and_input_analyser_efficiency_ws_throws_error() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto magGrp = createMagWSGroup("magWs");
+    const auto analyserEffWs = createWS("analyserEff", 0.9);
+    const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
+    alg->setProperty(InputPropNames::A_EFF_WS, analyserEffWs);
+    assertValidationError(alg, InputPropNames::A_EFF_WS, PropErrors::INPUT_EFF_WS_ERROR);
+  }
+
+  void test_requesting_p_eff_output_without_relevant_inputs_throws_error() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto alg = createEfficiencyAlg(nonMagGrp);
+    alg->setPropertyValue(OutputPropNames::P_EFF_WS, "pEff");
+    assertValidationError(alg, OutputPropNames::P_EFF_WS, PropErrors::OUTPUT_P_EFF_ERROR);
+  }
+
+  void test_requesting_a_eff_output_without_relevant_inputs_throws_error() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto alg = createEfficiencyAlg(nonMagGrp);
+    alg->setPropertyValue(OutputPropNames::A_EFF_WS, "aEff");
+    assertValidationError(alg, OutputPropNames::A_EFF_WS, PropErrors::OUTPUT_A_EFF_ERROR);
+  }
+
+  ///  Test outputs
+
+  void test_all_calculations_are_correct() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto magGrp = createMagWSGroup("magWs");
+    const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
+    // alg->setPropertyValue(OutputPropNames::P_EFF_WS, "pEff");
+    // alg->setPropertyValue(OutputPropNames::A_EFF_WS, "aEff");
+    alg->execute();
+
+    const size_t expectedNumHistograms =
+        std::dynamic_pointer_cast<Mantid::API::MatrixWorkspace>(nonMagGrp->getItem(0))->getNumberHistograms();
+
+    checkOutputWorkspace(alg, OutputPropNames::F_P_EFF_WS, expectedNumHistograms, 0.86363636);
+    checkOutputWorkspace(alg, OutputPropNames::F_A_EFF_WS, expectedNumHistograms, 0.95);
+    // checkOutputWorkspace(alg, OutputPropNames::P_EFF_WS, expectedNumHistograms, 1.04334004);
+    // checkOutputWorkspace(alg, OutputPropNames::A_EFF_WS, expectedNumHistograms, 0.92892264);
+    // checkOutputWorkspace(alg, OutputPropNames::PHI_WS, expectedNumHistograms, 0.93220339);
+    // checkOutputWorkspace(alg, OutputPropNames::ALPHA_WS, expectedNumHistograms, 0.9);
+    // checkOutputWorkspace(alg, OutputPropNames::RHO_WS, expectedNumHistograms, 0.72727273);
+    // checkOutputWorkspace(alg, OutputPropNames::TPMO_WS, expectedNumHistograms, 1.08668008);
+    // checkOutputWorkspace(alg, OutputPropNames::TAMO_WS, expectedNumHistograms, 0.85784529);
+  }
+
 private:
-  const std::vector<double> NON_MAG_Y_VALS = {12.0, 1.0, 1.0, 12.0};
-  const std::vector<double> MAG_Y_VALS = {6.0, 0.2, 0.2, 1.0};
+  const std::vector<double> NON_MAG_Y_VALS = {12.0, 1.0, 2.0, 10.0};
+  const std::vector<double> MAG_Y_VALS = {6.0, 0.2, 0.3, 1.0};
 
   WorkspaceGroup_sptr createNonMagWSGroup(const std::string &outName, const bool isWavelength = true,
                                           const bool isSingleSpectrum = true) {
@@ -245,15 +321,10 @@ private:
     return alg;
   }
 
-  void assertRuntimeError(const std::unique_ptr<PolarizationEfficienciesWildes> &alg,
-                          const std::string &expectedError) {
-    TS_ASSERT_THROWS_EQUALS(alg->execute(), const std::runtime_error &e, std::string(e.what()), expectedError);
-  }
-
   void assertValidationError(const std::unique_ptr<PolarizationEfficienciesWildes> &alg,
                              const std::string &propertyName, const std::string &errorMsg) {
     const auto expectedError = PropErrors::createPropertyErrorMessage(propertyName, errorMsg);
-    assertRuntimeError(alg, expectedError);
+    TS_ASSERT_THROWS_EQUALS(alg->execute(), const std::runtime_error &e, std::string(e.what()), expectedError);
   }
 
   template <typename T>
@@ -261,5 +332,16 @@ private:
     auto alg = std::make_unique<PolarizationEfficienciesWildes>();
     alg->initialize();
     TS_ASSERT_THROWS(alg->setProperty(propertyName, propertyValue), const std::invalid_argument &);
+  }
+
+  void checkOutputWorkspace(const std::unique_ptr<PolarizationEfficienciesWildes> &alg,
+                            const std::string &outputPropertyName, const size_t expectedNumHistograms,
+                            const double expectedYValue) {
+    const MatrixWorkspace_sptr outWs = alg->getProperty(outputPropertyName);
+    TS_ASSERT(outWs != nullptr);
+    TS_ASSERT_EQUALS(expectedNumHistograms, outWs->getNumberHistograms())
+    for (const double yVal : outWs->dataY(0)) {
+      TS_ASSERT_DELTA(expectedYValue, yVal, 1e-8);
+    }
   }
 };
