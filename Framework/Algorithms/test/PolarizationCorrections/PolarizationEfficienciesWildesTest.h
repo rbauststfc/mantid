@@ -256,6 +256,50 @@ public:
     checkOutputWorkspace(alg, OutputPropNames::TAMO_WS, expectedNumHistograms, 0.87030310);
   }
 
+  void test_diagnostics_not_output_if_not_requested() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto magGrp = createMagWSGroup("magWs");
+    const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
+    alg->setProperty(InputPropNames::INCLUDE_DIAGNOSTICS, false);
+    alg->setPropertyValue(OutputPropNames::P_EFF_WS, "pEff");
+    alg->setPropertyValue(OutputPropNames::A_EFF_WS, "aEff");
+    alg->execute();
+
+    checkOutputWorkspacesSetCorrectly(alg, true, true, false);
+  }
+
+  void test_polarizer_and_analyser_efficiencies_and_diagnostics_not_output_if_both_not_requested() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto magGrp = createMagWSGroup("magWs");
+    const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
+    alg->setProperty(InputPropNames::INCLUDE_DIAGNOSTICS, true);
+    alg->execute();
+
+    checkOutputWorkspacesSetCorrectly(alg, false, false, false);
+  }
+
+  void test_polarizer_efficiency_and_diagnostic_not_output_if_not_requested() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto magGrp = createMagWSGroup("magWs");
+    const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
+    alg->setProperty(InputPropNames::INCLUDE_DIAGNOSTICS, true);
+    alg->setPropertyValue(OutputPropNames::A_EFF_WS, "aEff");
+    alg->execute();
+
+    checkOutputWorkspacesSetCorrectly(alg, false, true, true);
+  }
+
+  void test_analyser_efficiency_and_diagnostic_not_output_if_not_requested() {
+    const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
+    const auto magGrp = createMagWSGroup("magWs");
+    const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
+    alg->setProperty(InputPropNames::INCLUDE_DIAGNOSTICS, true);
+    alg->setPropertyValue(OutputPropNames::P_EFF_WS, "pEff");
+    alg->execute();
+
+    checkOutputWorkspacesSetCorrectly(alg, true, false, true);
+  }
+
 private:
   const std::vector<double> NON_MAG_Y_VALS = {12.0, 1.0, 2.0, 10.0};
   const std::vector<double> MAG_Y_VALS = {6.0, 0.2, 0.3, 1.0};
@@ -344,6 +388,60 @@ private:
     TS_ASSERT_EQUALS(expectedNumHistograms, outWs->getNumberHistograms())
     for (const double yVal : outWs->dataY(0)) {
       TS_ASSERT_DELTA(expectedYValue, yVal, 1e-8);
+    }
+  }
+
+  void checkOutputWorkspaceSet(const std::unique_ptr<PolarizationEfficienciesWildes> &alg,
+                               const std::string &outputPropertyName) {
+    const MatrixWorkspace_sptr outWs = alg->getProperty(outputPropertyName);
+    TS_ASSERT(outWs != nullptr);
+  }
+
+  void checkOutputWorkspaceNotSet(const std::unique_ptr<PolarizationEfficienciesWildes> &alg,
+                                  const std::string &outputPropertyName) {
+    const MatrixWorkspace_sptr outWs = alg->getProperty(outputPropertyName);
+    TS_ASSERT(outWs == nullptr);
+  }
+
+  void checkOutputWorkspacesSetCorrectly(const std::unique_ptr<PolarizationEfficienciesWildes> &alg,
+                                         const bool includeP, const bool includeA, const bool includeDiagnostics) {
+    checkOutputWorkspaceSet(alg, OutputPropNames::F_P_EFF_WS);
+    checkOutputWorkspaceSet(alg, OutputPropNames::F_A_EFF_WS);
+
+    if (includeP) {
+      checkOutputWorkspaceSet(alg, OutputPropNames::P_EFF_WS);
+    } else {
+      checkOutputWorkspaceNotSet(alg, OutputPropNames::P_EFF_WS);
+    }
+
+    if (includeA) {
+      checkOutputWorkspaceSet(alg, OutputPropNames::A_EFF_WS);
+    } else {
+      checkOutputWorkspaceNotSet(alg, OutputPropNames::A_EFF_WS);
+    }
+
+    if (includeDiagnostics) {
+      checkOutputWorkspaceSet(alg, OutputPropNames::PHI_WS);
+      checkOutputWorkspaceSet(alg, OutputPropNames::ALPHA_WS);
+      checkOutputWorkspaceSet(alg, OutputPropNames::RHO_WS);
+
+      if (includeP) {
+        checkOutputWorkspaceSet(alg, OutputPropNames::TPMO_WS);
+      } else {
+        checkOutputWorkspaceNotSet(alg, OutputPropNames::TPMO_WS);
+      }
+
+      if (includeA) {
+        checkOutputWorkspaceNotSet(alg, OutputPropNames::TAMO_WS);
+      } else {
+        checkOutputWorkspaceNotSet(alg, OutputPropNames::TAMO_WS);
+      }
+    } else {
+      checkOutputWorkspaceNotSet(alg, OutputPropNames::PHI_WS);
+      checkOutputWorkspaceNotSet(alg, OutputPropNames::ALPHA_WS);
+      checkOutputWorkspaceNotSet(alg, OutputPropNames::RHO_WS);
+      checkOutputWorkspaceNotSet(alg, OutputPropNames::TPMO_WS);
+      checkOutputWorkspaceNotSet(alg, OutputPropNames::TAMO_WS);
     }
   }
 };

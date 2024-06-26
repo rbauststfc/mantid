@@ -101,16 +101,16 @@ void PolarizationEfficienciesWildes::init() {
                                                                        Direction::Output, PropertyMode::Optional),
                   "Workspace containing the wavelength-dependent value for the term (2a-1).");
 
-  setPropertySettings(PropNames::OUTPUT_PHI_WS,
-                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
-  setPropertySettings(PropNames::OUTPUT_RHO_WS,
-                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
-  setPropertySettings(PropNames::OUTPUT_ALPHA_WS,
-                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
-  setPropertySettings(PropNames::OUTPUT_TPMO_WS,
-                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
-  setPropertySettings(PropNames::OUTPUT_TAMO_WS,
-                      std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1"));
+  auto makeSettingIncludeDiagnosticsIsSelected = [] {
+    return std::make_unique<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1");
+  };
+  std::shared_ptr<IPropertySettings> setting =
+      std::make_shared<Kernel::EnabledWhenProperty>(PropNames::INCLUDE_DIAGNOSTICS, IS_EQUAL_TO, "1");
+  setPropertySettings(PropNames::OUTPUT_PHI_WS, makeSettingIncludeDiagnosticsIsSelected());
+  setPropertySettings(PropNames::OUTPUT_RHO_WS, makeSettingIncludeDiagnosticsIsSelected());
+  setPropertySettings(PropNames::OUTPUT_ALPHA_WS, makeSettingIncludeDiagnosticsIsSelected());
+  setPropertySettings(PropNames::OUTPUT_TPMO_WS, makeSettingIncludeDiagnosticsIsSelected());
+  setPropertySettings(PropNames::OUTPUT_TAMO_WS, makeSettingIncludeDiagnosticsIsSelected());
 
   const auto &effOutputGroup = PropNames::OUTPUT_EFF_GROUP;
   setPropertyGroup(PropNames::OUTPUT_P_EFF_WS, effOutputGroup);
