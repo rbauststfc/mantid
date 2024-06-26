@@ -47,6 +47,7 @@ auto constexpr NON_MAG_WS{"InputNonMagWorkspace"};
 auto constexpr MAG_WS{"InputMagWorkspace"};
 auto constexpr P_EFF_WS{"InputPolarizerEfficiency"};
 auto constexpr A_EFF_WS{"InputAnalyserEfficiency"};
+auto constexpr INCLUDE_DIAGNOSTICS{"IncludeDiagnosticOutputs"};
 } // namespace InputPropNames
 
 namespace OutputPropNames {
@@ -236,8 +237,9 @@ public:
     const auto nonMagGrp = createNonMagWSGroup("nonMagWs");
     const auto magGrp = createMagWSGroup("magWs");
     const auto alg = createEfficiencyAlg(nonMagGrp, magGrp);
-    // alg->setPropertyValue(OutputPropNames::P_EFF_WS, "pEff");
-    // alg->setPropertyValue(OutputPropNames::A_EFF_WS, "aEff");
+    alg->setProperty(InputPropNames::INCLUDE_DIAGNOSTICS, true);
+    alg->setPropertyValue(OutputPropNames::P_EFF_WS, "pEff");
+    alg->setPropertyValue(OutputPropNames::A_EFF_WS, "aEff");
     alg->execute();
 
     const size_t expectedNumHistograms =
@@ -245,13 +247,13 @@ public:
 
     checkOutputWorkspace(alg, OutputPropNames::F_P_EFF_WS, expectedNumHistograms, 0.86363636);
     checkOutputWorkspace(alg, OutputPropNames::F_A_EFF_WS, expectedNumHistograms, 0.95);
-    // checkOutputWorkspace(alg, OutputPropNames::P_EFF_WS, expectedNumHistograms, 1.04334004);
-    // checkOutputWorkspace(alg, OutputPropNames::A_EFF_WS, expectedNumHistograms, 0.92892264);
-    // checkOutputWorkspace(alg, OutputPropNames::PHI_WS, expectedNumHistograms, 0.93220339);
-    // checkOutputWorkspace(alg, OutputPropNames::ALPHA_WS, expectedNumHistograms, 0.9);
-    // checkOutputWorkspace(alg, OutputPropNames::RHO_WS, expectedNumHistograms, 0.72727273);
-    // checkOutputWorkspace(alg, OutputPropNames::TPMO_WS, expectedNumHistograms, 1.08668008);
-    // checkOutputWorkspace(alg, OutputPropNames::TAMO_WS, expectedNumHistograms, 0.85784529);
+    checkOutputWorkspace(alg, OutputPropNames::P_EFF_WS, expectedNumHistograms, 1.03556249);
+    checkOutputWorkspace(alg, OutputPropNames::A_EFF_WS, expectedNumHistograms, 0.93515155);
+    checkOutputWorkspace(alg, OutputPropNames::PHI_WS, expectedNumHistograms, 0.93220339);
+    checkOutputWorkspace(alg, OutputPropNames::ALPHA_WS, expectedNumHistograms, 0.9);
+    checkOutputWorkspace(alg, OutputPropNames::RHO_WS, expectedNumHistograms, 0.72727273);
+    checkOutputWorkspace(alg, OutputPropNames::TPMO_WS, expectedNumHistograms, 1.07112498);
+    checkOutputWorkspace(alg, OutputPropNames::TAMO_WS, expectedNumHistograms, 0.87030310);
   }
 
 private:

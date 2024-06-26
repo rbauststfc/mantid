@@ -245,6 +245,19 @@ void PolarizationEfficienciesWildes::exec() {
   }
 }
 
+namespace {
+/// Solve for the unknown efficiency from either (2p-1) or (2a-1)
+MatrixWorkspace_sptr solveUnknownEfficiencyFromTXMO(const MatrixWorkspace_sptr &wsPhi,
+                                                    const MatrixWorkspace_sptr &wsTXMO) {
+  return (wsPhi / (2 * wsTXMO)) + 0.5;
+}
+
+void setUnitAndDistributionToMatch(const MatrixWorkspace_sptr &wsToUpdate, const MatrixWorkspace_sptr &matchWs) {
+  wsToUpdate->setYUnit(matchWs->YUnit());
+  wsToUpdate->setDistribution(matchWs->isDistribution());
+}
+} // unnamed namespace
+
 MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculatePhi(const MatrixWorkspace_sptr &ws00,
                                                                   const MatrixWorkspace_sptr &ws01,
                                                                   const MatrixWorkspace_sptr &ws10,
@@ -270,11 +283,26 @@ MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateTPMOFromPhi(const 
   const auto &ws10 = workspaceForSpinState(magWsGrp, flipperConfig, SpinStateValidator::ONE_ZERO);
   const auto &ws11 = workspaceForSpinState(magWsGrp, flipperConfig, SpinStateValidator::ONE_ONE);
 
+  // We use the flipper efficiency to multiply the mag ws counts, but the resulting workspace will have lost the Y unit
+  // and distribution information. We need to put these back otherwise the rest of the calculation fails when it tries
+  // to add and subtract workspaces with different Y units.
   const auto twoFp = 2 * wsFp;
   const auto twoFa = 2 * wsFa;
 
-  const auto numerator = ((1 - twoFa) * ws00) + ((twoFa - 1) * ws10) - ws01 + ws11;
-  const auto denominator = ((1 - twoFp) * ws00) + ((twoFp - 1) * ws01) - ws10 + ws11;
+  const auto a = (1 - twoFa) * ws00;
+  setUnitAndDistributionToMatch(a, ws00);
+
+  const auto b = (twoFa - 1) * ws10;
+  setUnitAndDistributionToMatch(b, ws10);
+
+  const auto c = (1 - twoFp) * ws00;
+  setUnitAndDistributionToMatch(c, ws00);
+
+  const auto d = (twoFp - 1) * ws01;
+  setUnitAndDistributionToMatch(d, ws01);
+
+  const auto numerator = a + b - ws01 + ws11;
+  const auto denominator = c + d - ws10 + ws11;
   const auto tPMOSquared = wsPhi * (numerator / denominator);
 
   auto alg = createChildAlgorithm("Power");
@@ -285,14 +313,6 @@ MatrixWorkspace_sptr PolarizationEfficienciesWildes::calculateTPMOFromPhi(const 
 
   return alg->getProperty("OutputWorkspace");
 }
-
-namespace {
-/// Solve for the unknown efficiency from either (2p-1) or (2a-1)
-MatrixWorkspace_sptr solveUnknownEfficiencyFromTXMO(const MatrixWorkspace_sptr &wsPhi,
-                                                    const MatrixWorkspace_sptr &wsTXMO) {
-  return (wsPhi / (2 * wsTXMO)) + 0.5;
-}
-} // unnamed namespace
 
 void PolarizationEfficienciesWildes::calculatePolarizerAndAnalyserEfficiencies(
     const MatrixWorkspace_sptr &wsFp, const MatrixWorkspace_sptr &wsFa, const MatrixWorkspace_sptr &wsPhi,
