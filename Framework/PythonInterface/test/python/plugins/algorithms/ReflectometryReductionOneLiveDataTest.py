@@ -548,20 +548,19 @@ class ReflectometryReductionOneLiveDataTest(unittest.TestCase):
         return mtd[ws_name]
 
     def _run_algorithm_with_defaults(self):
-        alg = create_algorithm("ReflectometryReductionOneLiveData", **self._default_args)
-        assertRaisesNothing(self, alg.execute)
-        return mtd["output"]
+        return self._run_algorithm(self._default_args)
 
     def _run_algorithm_with_alternative_names(self):
         args = self._default_args
         args["GetLiveValueAlgorithm"] = "GetFakeLiveInstrumentValueAlternativeNames"
-        alg = create_algorithm("ReflectometryReductionOneLiveData", **args)
-        assertRaisesNothing(self, alg.execute)
-        return mtd["output"]
+        return self._run_algorithm(args)
 
     def _run_algorithm_with_zero_theta(self):
         args = self._default_args
         args["GetLiveValueAlgorithm"] = "GetFakeLiveInstrumentValuesWithZeroTheta"
+        return self._run_algorithm(args)
+
+    def _run_algorithm(self, args):
         alg = create_algorithm("ReflectometryReductionOneLiveData", **args)
         assertRaisesNothing(self, alg.execute)
         return mtd["output"]
